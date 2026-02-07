@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:habitu/core/app_constants.dart';
+import 'package:habitu/models/habit.dart';
+import 'package:habitu/screens/manage_habits_screen.dart';
+import 'package:habitu/services/habit_service.dart';
 import 'package:habitu/widgets/orbit_habit_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  static final HabitService _habitService = HabitService();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The background color should be the deep Obsidian we defined
       backgroundColor: const Color(0xFF0A0A0C),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. The Cosmic Header
           SliverAppBar(
             expandedHeight: 180.0,
             floating: false,
@@ -33,43 +37,102 @@ class HomeScreen extends StatelessWidget {
               background: _buildHeaderStats(),
             ),
           ),
-
-          // 2. The Habit Feed
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const _SectionHeader(title: "MORNING SYSTEM"),
-                OrbitHabitCard(
-                  habitName: "Meditate",
-                  onComplete: () => _showCompletionToast(context),
-                ),
-                const SizedBox(height: 20),
-                OrbitHabitCard(
-                  habitName: "Hydrate",
-                  onComplete: () => _showCompletionToast(context),
-                ),
-                const SizedBox(height: 40),
-                const _SectionHeader(title: "AFTERNOON SYSTEM"),
-                OrbitHabitCard(
-                  habitName: "Deep Work",
-                  onComplete: () => _showCompletionToast(context),
-                ),
-                const SizedBox(height: 20),
-                OrbitHabitCard(
-                  habitName: "Reading",
-                  onComplete: () => _showCompletionToast(context),
-                ),
-              ]),
+            sliver: StreamBuilder<List<Habit>>(
+              stream: _habitService.watchHabits(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Something went wrong',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                      ),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(48),
+                      child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
+                    ),
+                  );
+                }
+                final habits = snapshot.data!;
+                if (habits.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 40),
+                          Text(
+                            'No habits yet',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap + to add your first habit',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final grouped = _groupBySection(habits);
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final section = grouped.keys.elementAt(index);
+                      final sectionHabits = grouped[section]!;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionHeader(title: HabitSections.displayName(section)),
+                          ...sectionHabits.map(
+                            (h) => Padding(
+                              padding: const EdgeInsets.only(bottom: 20),
+                              child: OrbitHabitCard(
+                                habit: h,
+                                onComplete: () => _showCompletionToast(context),
+                              ),
+                            ),
+                          ),
+                          if (index < grouped.length - 1) const SizedBox(height: 24),
+                        ],
+                      );
+                    },
+                    childCount: grouped.length,
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
-
-      // 3. Floating Action Button (Glass Style)
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _buildAddButton(),
+      floatingActionButton: _buildAddButton(context),
     );
+  }
+
+  Map<String, List<Habit>> _groupBySection(List<Habit> habits) {
+    final map = <String, List<Habit>>{};
+    for (final section in HabitSections.all) {
+      final list = habits.where((h) => h.section == section).toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+      if (list.isNotEmpty) map[section] = list;
+    }
+    return map;
   }
 
   Widget _buildHeaderStats() {
@@ -95,16 +158,21 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAddButton() {
-    return Container(
-      height: 60,
-      width: 60,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: 0.1),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+  Widget _buildAddButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ManageHabitsScreen()),
       ),
-      child: const Icon(Icons.add, color: Colors.white, size: 30),
+      child: Container(
+        height: 60,
+        width: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.1),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
+      ),
     );
   }
 

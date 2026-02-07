@@ -2,12 +2,13 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:habitu/models/habit.dart';
 
 class OrbitHabitCard extends StatefulWidget {
-  final String habitName;
+  final Habit habit;
   final VoidCallback onComplete;
 
-  const OrbitHabitCard({super.key, required this.habitName, required this.onComplete});
+  const OrbitHabitCard({super.key, required this.habit, required this.onComplete});
 
   @override
   State<OrbitHabitCard> createState() => _OrbitHabitCardState();
@@ -95,7 +96,7 @@ class _OrbitHabitCardState extends State<OrbitHabitCard> with SingleTickerProvid
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          widget.habitName,
+                          widget.habit.name,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 32,
