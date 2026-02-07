@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:habitu/screens/home_screen.dart';
+import 'package:habitu/screens/setup/setup_gate.dart';
 
 class HabituApp extends StatelessWidget {
   const HabituApp({super.key});
@@ -11,7 +11,7 @@ class HabituApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const HomeScreen(),
+      home: const SetupGate(),
     );
   }
 }

@@ -10,7 +10,6 @@ class HabitService {
 
   /// Stream all habits ordered by section then order.
   Stream<List<Habit>> watchHabits() {
-    print("watchHabits");
     return _habits.orderBy('section').orderBy('order').snapshots().map((snap) {
       return snap.docs.map((doc) => Habit.fromMap(doc.id, doc.data())).toList();
     });
