@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:habitu/core/app_constants.dart';
 import 'package:habitu/screens/home_screen.dart';
-import 'package:habitu/screens/setup/age_selection.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:habitu/screens/setup/unified_setup_screen.dart';
+import 'package:habitu/services/user_prefs_service.dart';
 
-/// Decides whether to show setup flow (age → habits) or [HomeScreen].
+/// Decides whether to show setup flow (unified age + habits) or [HomeScreen].
+/// [uid] must be the current authenticated user's id.
 class SetupGate extends StatelessWidget {
-  const SetupGate({super.key});
+  final String uid;
+
+  const SetupGate({super.key, required this.uid});
 
   @override
   Widget build(BuildContext context) {
+    final userPrefs = UserPrefsService();
     return FutureBuilder<bool>(
-      future: SharedPreferences.getInstance()
-          .then((p) => p.getBool(kSetupCompleteKey) ?? false),
+      future: userPrefs.isSetupComplete(uid),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(
@@ -25,7 +27,7 @@ class SetupGate extends StatelessWidget {
         if (snapshot.data == true) {
           return const HomeScreen();
         }
-        return const AgeSelectionScreen();
+        return const UnifiedSetupScreen();
       },
     );
   }

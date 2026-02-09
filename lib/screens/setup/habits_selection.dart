@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:habitu/core/app_constants.dart';
 import 'package:habitu/models/habit.dart';
 import 'package:habitu/models/habit_meta.dart';
 import 'package:habitu/screens/home_screen.dart';
 import 'package:habitu/services/habit_service.dart';
 import 'package:habitu/services/habits_meta_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:habitu/services/user_prefs_service.dart';
 
 const int _chipsPerSection = 5;
 
@@ -27,6 +28,7 @@ class HabitSelectionScreen extends StatefulWidget {
 class _HabitSelectionScreenState extends State<HabitSelectionScreen> {
   final HabitsMetaService _metaService = HabitsMetaService();
   final HabitService _habitService = HabitService();
+  final UserPrefsService _userPrefs = UserPrefsService();
 
   List<HabitMeta> _allMeta = [];
   Map<String, List<HabitMeta>> _byCategory = {};
@@ -310,6 +312,8 @@ class _HabitSelectionScreenState extends State<HabitSelectionScreen> {
 
   Future<void> _onComplete() async {
     if (_selectedIds.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
     final selected = _allMeta.where((m) => _selectedIds.contains(m.id)).toList();
     final now = DateTime.now();
     final section = HabitSections.morning;
@@ -325,8 +329,7 @@ class _HabitSelectionScreenState extends State<HabitSelectionScreen> {
       ));
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kSetupCompleteKey, true);
+    await _userPrefs.setSetupComplete(uid);
 
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
