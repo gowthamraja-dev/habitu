@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:habitu/screens/auth/login_screen.dart';
 import 'package:habitu/screens/setup/setup_gate.dart';
 import 'package:habitu/services/auth_service.dart';
+import 'package:habitu/widgets/fcm_token_registration.dart';
 
 /// Shows [LoginScreen] when not authenticated, otherwise [SetupGate] (which shows setup or home).
 class AuthGate extends StatelessWidget {
@@ -25,7 +26,10 @@ class AuthGate extends StatelessWidget {
         if (user == null) {
           return const LoginScreen();
         }
-        return SetupGate(uid: user.uid);
+        return FcmTokenRegistration(
+          uid: user.uid,
+          child: SetupGate(uid: user.uid),
+        );
       },
     );
   }

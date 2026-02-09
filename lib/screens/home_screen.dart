@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:habitu/core/app_constants.dart';
 import 'package:habitu/models/habit.dart';
 import 'package:habitu/screens/manage/manage_habits_screen.dart';
+import 'package:habitu/screens/settings/settings_screen.dart';
 import 'package:habitu/services/auth_service.dart';
 import 'package:habitu/services/habit_service.dart';
 import 'package:habitu/widgets/orbit_habit_card.dart';
@@ -30,8 +31,23 @@ class HomeScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 onSelected: (value) {
                   if (value == 'sign_out') AuthService().signOut();
+                  if (value == 'settings') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+                    );
+                  }
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings, size: 20, color: Colors.white70),
+                        SizedBox(width: 12),
+                        Text('Settings', style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'sign_out',
                     child: Row(

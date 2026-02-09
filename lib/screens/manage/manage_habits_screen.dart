@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:habitu/core/ist_time.dart';
 import 'package:habitu/core/app_constants.dart';
 import 'package:habitu/models/habit.dart';
 import 'package:habitu/screens/manage/add_habits_screen.dart';
 import 'package:habitu/screens/manage/habit_form_sheet.dart';
+import 'package:habitu/screens/manage/habit_reminder_sheet.dart';
 import 'package:habitu/services/habit_service.dart';
 
 class ManageHabitsScreen extends StatelessWidget {
@@ -81,6 +83,7 @@ class ManageHabitsScreen extends StatelessWidget {
                       habit: h,
                       onEdit: () => _openEditSheet(context, h),
                       onDelete: () => _confirmDelete(context, h),
+                      onSetReminder: () => _openReminderSheet(context, h),
                     ),
                   ),
                 ],
@@ -127,6 +130,18 @@ class ManageHabitsScreen extends StatelessWidget {
           ));
           if (ctx.mounted) Navigator.of(ctx).pop();
         },
+      ),
+    );
+  }
+
+  void _openReminderSheet(BuildContext context, Habit habit) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => HabitReminderSheet(
+        habit: habit,
+        onSaved: () {},
       ),
     );
   }
@@ -208,15 +223,18 @@ class _HabitTile extends StatelessWidget {
   final Habit habit;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onSetReminder;
 
   const _HabitTile({
     required this.habit,
     required this.onEdit,
     required this.onDelete,
+    required this.onSetReminder,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasReminder = habit.reminderTimeMinutes != null;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -234,14 +252,39 @@ class _HabitTile extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    habit.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w300,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        habit.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                      if (hasReminder && habit.reminderTimeOfDay != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Reminder ${IstTime.formatMinutes(habit.reminderTimeMinutes!)}',
+                          style: TextStyle(
+                            color: Colors.cyanAccent.withValues(alpha: 0.9),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    hasReminder ? Icons.notifications_active : Icons.notifications_none_outlined,
+                    size: 20,
+                    color: hasReminder ? Colors.cyanAccent : Colors.white.withValues(alpha: 0.5),
+                  ),
+                  onPressed: onSetReminder,
+                  tooltip: hasReminder ? 'Change reminder' : 'Set reminder',
                 ),
                 IconButton(
                   icon: Icon(Icons.edit_outlined, size: 20, color: Colors.white.withValues(alpha: 0.5)),
