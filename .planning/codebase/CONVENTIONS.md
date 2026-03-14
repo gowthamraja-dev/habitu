@@ -1,69 +1,62 @@
-# Coding Conventions
+# Codebase Conventions
 
 ## Scope
-- This document reflects the current Flutter/Dart app code under `lib/` plus platform shells in `android/` and `ios/`.
-- Lint baseline is `analysis_options.yaml` (`include: package:flutter_lints/flutter.yaml`).
+This document records conventions currently used in this Flutter app and the expected patterns for new code.
 
 ## Project Layout
-- App entry and bootstrap live in `lib/main.dart` and `lib/app/app.dart`.
-- Core constants/time helpers are in `lib/core/app_constants.dart` and `lib/core/ist_time.dart`.
-- Firestore/auth domain models are in `lib/models/habit.dart` and `lib/models/habit_meta.dart`.
-- Firebase/data/notification services are in `lib/services/`.
-- UI is split by feature in `lib/screens/` (`auth/`, `setup/`, `manage/`, `settings/`) plus reusable widgets in `lib/widgets/`.
+- App bootstrap and global navigation live in `lib/main.dart` and `lib/app/app.dart`.
+- Shared constants and time utilities live in `lib/core/app_constants.dart` and `lib/core/ist_time.dart`.
+- Firestore-backed domain models live in `lib/models/habit.dart` and `lib/models/habit_meta.dart`.
+- Firebase/Firestore/device integration logic lives in `lib/services/` (`lib/services/auth_service.dart`, `lib/services/habit_service.dart`, `lib/services/habits_meta_service.dart`, `lib/services/user_prefs_service.dart`, `lib/services/fcm_service.dart`, `lib/services/notification_service.dart`).
+- UI route composition lives in `lib/screens/` with feature folders: `lib/screens/auth/`, `lib/screens/setup/`, `lib/screens/manage/`, `lib/screens/settings/`.
+- Shared UI primitives/components live in `lib/widgets/` (`lib/widgets/orbit_habit_card.dart`, `lib/widgets/fcm_token_registration.dart`).
 
-## Naming and File Patterns
-- Files use `snake_case` (examples: `lib/services/habit_service.dart`, `lib/screens/home_screen.dart`).
-- Types use `PascalCase` (`HabitService`, `UnifiedSetupScreen`, `OrbitHabitCard`).
-- Private members/types use leading `_` (`_habitsCollection`, `_SettingsScreenState`, `_SectionTitle`).
-- Screen files generally end with `_screen.dart`; service files generally end with `_service.dart`.
+## Naming and File Rules
+- Use `snake_case.dart` filenames (`setup_gate.dart`, `habit_service.dart`).
+- Name classes in `UpperCamelCase` (`HabitService`, `UnifiedSetupScreen`).
+- Name methods/fields in `lowerCamelCase` (`watchHabits`, `requestPermission`).
+- Prefix private library members with `_` (`_habitsCollection`, `_loadToken`, `_selectedIds`).
+- Keep one primary class per file unless helper widgets are file-private to the same screen (for example `_SectionHeader` in `lib/screens/home_screen.dart`).
 
-## Imports
-- Imports are package-style, including local code (`package:habitu/...`) rather than relative paths.
-- Typical ordering in files: Dart SDK imports, third-party package imports, then `package:habitu/...` imports.
-- Example files: `lib/widgets/orbit_habit_card.dart`, `lib/services/notification_service.dart`, `lib/main.dart`.
+## UI Conventions
+- Use dark-theme-first styling with explicit colors in screens (`Color(0xFF0A0A0C)` appears across `lib/screens/*`).
+- Use `StatelessWidget` when no local mutable state is needed (`HomeScreen`, `SetupGate`, `AuthGate`).
+- Use `StatefulWidget` for async calls, form control, or selection state (`LoginScreen`, `UnifiedSetupScreen`, `SettingsScreen`).
+- Use async data builders at boundaries:
+- `StreamBuilder` for real-time Firestore/auth streams (`lib/screens/home_screen.dart`, `lib/screens/manage/manage_habits_screen.dart`, `lib/screens/auth/auth_gate.dart`).
+- `FutureBuilder` for one-shot reads (`lib/screens/setup/setup_gate.dart`).
+- Keep modal workflows in dedicated bottom-sheet widgets (`lib/screens/manage/habit_form_sheet.dart`, `lib/screens/manage/habit_reminder_sheet.dart`).
 
-## Data and Serialization Conventions
-- Firestore mappers are explicit `toMap`/`fromMap` methods on model classes (`lib/models/habit.dart`, `lib/models/habit_meta.dart`).
-- `Habit` stores reminder time as minutes since midnight (`reminderTimeMinutes`) with conversion helpers in `lib/core/ist_time.dart`.
-- `HabitMeta` uses compact Firestore keys (`n`, `c`, `d`, `amin`, `amax`) and normalizes category casing in `lib/models/habit_meta.dart`.
+## Service and Data Access Conventions
+- Keep Firebase APIs behind service classes; screens should call services rather than raw SDK APIs.
+- Enforce auth preconditions in services (`lib/services/habit_service.dart` throws `StateError` when no user for collection operations).
+- Persist Firestore timestamps using `Timestamp.fromDate(...)` on write and `Timestamp.toDate()` on read (`lib/models/habit.dart`).
+- Use `SetOptions(merge: true)` when writing additive user profile fields (`saveFcmTokenToFirestore` in `lib/services/fcm_service.dart`).
+- Keep reminder time storage normalized as minutes since midnight; convert at edges with `IstTime` (`lib/core/ist_time.dart`, `lib/models/habit.dart`, `lib/screens/manage/habit_reminder_sheet.dart`).
 
-## Service Conventions
-- Services generally wrap SDK singletons as instance fields (examples in `lib/services/habit_service.dart`, `lib/services/auth_service.dart`, `lib/services/fcm_service.dart`).
-- `NotificationService` is an explicit singleton (`factory NotificationService() => _instance`) in `lib/services/notification_service.dart`.
-- Auth-scoped services validate user context and may throw `StateError` when called without an authenticated user (`lib/services/habit_service.dart`).
+## Async and State Safety
+- Guard `setState` and navigation with `if (!mounted) return;` after awaits (common in `lib/screens/auth/login_screen.dart`, `lib/screens/settings/settings_screen.dart`, `lib/screens/setup/unified_setup_screen.dart`).
+- Keep loading/error state explicit (`_loading`, `_error` patterns across setup/manage/settings screens).
+- Prefer user-visible recovery actions on failures (retry buttons and snack bars in `lib/screens/setup/habits_selection.dart`, `lib/screens/settings/settings_screen.dart`).
 
-## Async and UI-State Conventions
-- Async UI methods use `setState` before/after awaits and guard UI updates with `if (!mounted) return` (examples: `lib/screens/auth/login_screen.dart`, `lib/screens/settings/settings_screen.dart`, `lib/screens/setup/unified_setup_screen.dart`).
-- Setup/auth routing relies on builders over auth/profile state: `StreamBuilder` in `lib/screens/auth/auth_gate.dart`, `FutureBuilder` in `lib/screens/setup/setup_gate.dart`.
-- Navigation uses imperative `Navigator` APIs (`push`, `pushAndRemoveUntil`, modal sheets/dialogs) across `lib/screens/`.
+## Navigation Conventions
+- App-level gate flow is: `AuthGate` -> `SetupGate` -> `HomeScreen`.
+- Use `MaterialPageRoute` for most in-app navigation (`lib/screens/home_screen.dart`, `lib/screens/manage/manage_habits_screen.dart`).
+- Use `pushAndRemoveUntil` after setup completion to prevent returning to onboarding (`lib/screens/setup/unified_setup_screen.dart`, `lib/screens/setup/habits_selection.dart`).
+- Keep notification-open routing centralized via `HabituApp.handleNotificationOpen` in `lib/app/app.dart`.
 
-## Error Handling Conventions
-- Expected SDK failures are caught as specific exception types where useful (`FirebaseAuthException` in `lib/screens/auth/login_screen.dart`, `PlatformException` in `lib/services/notification_service.dart`).
-- Non-critical parsing/notification payload errors may be swallowed in tight callbacks (`catch (_) {}` in `lib/services/notification_service.dart`).
-- Null-return pattern is used for not-found data (`Future<Habit?> getById` in `lib/services/habit_service.dart`).
+## Linting and Static Analysis
+- Analyzer config extends `package:flutter_lints/flutter.yaml` via `analysis_options.yaml`.
+- Run `flutter analyze` before merging behavior changes.
+- Prefer fixing warnings in code instead of adding ignore directives.
 
-## Firebase and Notification Conventions
-- Firebase initializes at startup in `lib/main.dart`; background FCM handler is a top-level `@pragma('vm:entry-point')` function.
-- FCM token save pattern is merge-write to `users/{uid}` (`lib/services/fcm_service.dart`).
-- Local reminders are timezone-forced to IST (`Asia/Kolkata`) via `timezone` setup in `lib/services/notification_service.dart` and `lib/core/ist_time.dart`.
+## Platform and Config Boundaries
+- Firebase client config belongs in `lib/firebase_options.dart`, `android/app/google-services.json`, and platform runners under `ios/Runner/`.
+- Firestore rule updates live in `firestore.rules` and project-level Firebase config in `firebase.json`.
+- FCM setup/operational notes should stay in `docs/FCM_SETUP.md`.
 
-## Style and Formatting
-- Code uses standard Flutter formatting (2-space indentation, trailing commas in multiline widget trees).
-- `const` constructors/widgets are used where practical (examples throughout `lib/screens/home_screen.dart` and `lib/screens/auth/login_screen.dart`).
-- Public API surfaces frequently include concise doc comments (`///`) in models/services/core helpers.
-  final String name;
-  // ...
-  
-  const Habit({ required this.id, required this.name, ... });
-  
-  Map<String, dynamic> toMap() { ... }
-  
-  factory Habit.fromMap(String id, Map<String, dynamic> map) { ... }
-  
-  Habit copyWith({ ... }) { ... }
-}
-```
-
----
-
-*Convention analysis: 2026-03-13*
+## Practical Checklist for New Code
+- Add or update a service in `lib/services/` for any new backend/device integration.
+- Add or update models in `lib/models/` when Firestore schema changes.
+- Keep screens focused on composition/state; avoid embedding raw persistence logic in widgets.
+- Keep all new file-path references and imports package-qualified (`package:habitu/...`) as used across `lib/`.

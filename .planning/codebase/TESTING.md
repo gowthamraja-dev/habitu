@@ -1,47 +1,80 @@
-# Testing
+# Testing Strategy
 
 ## Current State
-- Dart/Flutter automated tests are not present: there is no `test/` directory and no `*_test.dart` files in the repo.
-- `flutter_test` is configured in `pubspec.yaml` under `dev_dependencies`, so the project is test-ready but currently unimplemented.
-- iOS scaffold test target exists at `ios/RunnerTests/RunnerTests.swift` (default placeholder XCTest file).
+- There is currently no `test/` or `integration_test/` directory in this repository.
+- `flutter_test` is available in `pubspec.yaml`, so test infrastructure can be added without dependency changes.
+- Existing automated checks today are mainly static analysis (`analysis_options.yaml` + `flutter analyze`).
 
-## Available Validation Paths Today
-- Static analysis: `flutter analyze` using rules from `analysis_options.yaml`.
-- Runtime/manual validation via app flows:
-  - Auth gate: `lib/screens/auth/auth_gate.dart`, `lib/screens/auth/login_screen.dart`
-  - Setup gate and onboarding: `lib/screens/setup/setup_gate.dart`, `lib/screens/setup/unified_setup_screen.dart`
-  - Habit management: `lib/screens/home_screen.dart`, `lib/screens/manage/manage_habits_screen.dart`, `lib/screens/manage/add_habits_screen.dart`
-  - Notifications + push diagnostics UI: `lib/screens/settings/settings_screen.dart`
+## Quality Gates to Use Now
+- Run static analysis on every change:
+- `flutter analyze`
+- Run formatting checks before commit:
+- `dart format lib`
 
-## Built-In Manual Test Hooks
-- Local notification immediate send: `NotificationService.showTestNow` in `lib/services/notification_service.dart`, triggered from Settings (`Test local (now)` action in `lib/screens/settings/settings_screen.dart`).
-- Delayed local notification: `NotificationService.scheduleTestInSeconds` in `lib/services/notification_service.dart`, triggered from Settings (`Test local (10s)`).
-- Push token visibility/copy flow: `FcmService.getToken` and token display/copy actions in `lib/screens/settings/settings_screen.dart`.
+## Recommended Test Layout
+Create these directories for scalable coverage:
+- `test/models/`
+- `test/core/`
+- `test/services/`
+- `test/widgets/`
+- `test/screens/`
+- `integration_test/`
 
-## Highest-Value Automated Tests To Add First
-- Model unit tests:
-  - `lib/models/habit.dart`: `toMap`, `fromMap`, `copyWith(clearReminder: true)`, `reminderTimeOfDay`.
-  - `lib/models/habit_meta.dart`: `fromMap` defaults and `matchesAgeRange`.
-- Core utility tests:
-  - `lib/core/ist_time.dart`: minute conversion boundaries and `formatMinutes` output.
-- Service unit tests (with Firebase abstractions/mocks):
-  - `lib/services/habit_service.dart`: unauthenticated behavior (`watchHabits` empty stream vs `StateError` paths), update timestamp behavior.
-  - `lib/services/habits_meta_service.dart`: category grouping/title-casing.
-- Widget tests:
-  - `lib/screens/auth/auth_gate.dart`: loading/authenticated/unauthenticated branches.
-  - `lib/screens/setup/setup_gate.dart`: setup-complete vs setup-required branch.
-  - `lib/widgets/orbit_habit_card.dart`: long-press completion flow invokes callback.
+## Unit Test Priorities
 
-## Suggested Test Layout
-- `test/models/habit_test.dart`
-- `test/models/habit_meta_test.dart`
-- `test/core/ist_time_test.dart`
-- `test/services/habit_service_test.dart`
-- `test/services/habits_meta_service_test.dart`
-- `test/widgets/auth_gate_test.dart`
-- `test/widgets/setup_gate_test.dart`
-- `test/widgets/orbit_habit_card_test.dart`
+### Models and Mapping
+- `test/models/habit_test.dart` for:
+- `Habit.toMap`/`Habit.fromMap` round-trips from `lib/models/habit.dart`.
+- `Habit.copyWith` behavior including `clearReminder`.
+- Reminder conversion helper `reminderTimeOfDay`.
+- `test/models/habit_meta_test.dart` for:
+- `HabitMeta.fromMap` defaults and lowercasing logic.
+- `matchesAgeRange` overlap correctness for boundary ages.
 
-## Testing Risks to Account For
-- Many services construct Firebase singletons internally (`FirebaseAuth.instance`, `FirebaseFirestore.instance`, `FirebaseMessaging.instance`), which increases mock/setup complexity in pure unit tests (`lib/services/auth_service.dart`, `lib/services/habit_service.dart`, `lib/services/fcm_service.dart`).
-- Notification scheduling depends on plugin platform channels and timezone initialization (`lib/services/notification_service.dart`), so unit tests should isolate ID/time computation logic and keep plugin calls mocked/faked.
+### Core Utilities
+- `test/core/ist_time_test.dart` for:
+- `IstTime.toMinutes` and `IstTime.fromMinutes` round-trips from `lib/core/ist_time.dart`.
+- Clamping behavior for out-of-range minute values.
+- `IstTime.formatMinutes` stable AM/PM formatting.
+
+### Service Logic (with fakes/mocks)
+- `test/services/habits_meta_service_test.dart` for:
+- `groupByCategory` and `getCategories` from `lib/services/habits_meta_service.dart`.
+- `test/services/notification_service_test.dart` for:
+- notification ID stability and scheduling fallback behavior in `lib/services/notification_service.dart`.
+- `test/services/habit_service_test.dart` for:
+- auth precondition behavior and CRUD mapping in `lib/services/habit_service.dart`.
+
+## Widget and Screen Test Priorities
+- `test/screens/auth/auth_gate_test.dart`:
+- unauthenticated path renders `LoginScreen`; authenticated path renders `SetupGate` from `lib/screens/auth/auth_gate.dart`.
+- `test/screens/setup/setup_gate_test.dart`:
+- setup complete vs incomplete rendering logic from `lib/screens/setup/setup_gate.dart`.
+- `test/screens/manage/habit_form_sheet_test.dart`:
+- validates save callback values and field behavior from `lib/screens/manage/habit_form_sheet.dart`.
+- `test/widgets/orbit_habit_card_test.dart`:
+- long-press completion callback behavior from `lib/widgets/orbit_habit_card.dart`.
+
+## Integration Test Priorities
+- `integration_test/auth_to_home_flow_test.dart`:
+- login -> setup gate -> home route flow anchored by `lib/app/app.dart` and `lib/screens/auth/auth_gate.dart`.
+- `integration_test/habit_management_flow_test.dart`:
+- add/edit/delete reminder flows through `lib/screens/manage/manage_habits_screen.dart`.
+- `integration_test/notification_smoke_test.dart`:
+- permission prompt and local-notification test action from `lib/screens/settings/settings_screen.dart`.
+
+## Firebase Test Approach
+- For unit/widget tests, isolate Firebase dependencies behind service seams and inject fakes where possible.
+- For integration tests that require Firestore/Auth behavior, run against Firebase Emulator Suite with project config from `firebase.json` and rules in `firestore.rules`.
+- Keep FCM-specific behavior mostly unit-tested at service boundaries (`lib/services/fcm_service.dart`) and validated manually on-device for token/permission specifics.
+
+## Practical Commands
+- Analyze: `flutter analyze`
+- Run unit/widget tests: `flutter test`
+- Run integration tests (after adding `integration_test/`): `flutter test integration_test`
+
+## Coverage Plan (Order of Implementation)
+1. Add deterministic model/core unit tests (`test/models/`, `test/core/`).
+2. Add pure-service tests that do not require live Firebase (`test/services/`).
+3. Add screen/widget tests around gate logic and form behavior (`test/screens/`, `test/widgets/`).
+4. Add critical happy-path integration tests for auth/setup/manage flows (`integration_test/`).

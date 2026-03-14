@@ -1,122 +1,79 @@
-# Codebase Structure
-
-**Analysis Date:** 2026-03-14
+# STRUCTURE
 
 ## Repository Layout
+- `lib/` - Flutter/Dart application source
+- `android/` - Android host app and manifest/channel config
+- `ios/` - iOS host app
+- `docs/` - project docs (`docs/FCM_SETUP.md`)
+- `.planning/codebase/` - generated codebase mapping docs
+- Root config: `pubspec.yaml`, `analysis_options.yaml`, `firebase.json`, `firestore.rules`
 
-```text
-habitu/
-├── lib/
-│   ├── main.dart
-│   ├── firebase_options.dart
-│   ├── app/
-│   │   └── app.dart
-│   ├── core/
-│   │   ├── app_constants.dart
-│   │   └── ist_time.dart
-│   ├── models/
-│   │   ├── habit.dart
-│   │   └── habit_meta.dart
-│   ├── screens/
-│   │   ├── auth/
-│   │   │   ├── auth_gate.dart
-│   │   │   └── login_screen.dart
-│   │   ├── setup/
-│   │   │   ├── setup_gate.dart
-│   │   │   ├── unified_setup_screen.dart
-│   │   │   ├── age_selection.dart
-│   │   │   └── habits_selection.dart
-│   │   ├── manage/
-│   │   │   ├── manage_habits_screen.dart
-│   │   │   ├── add_habits_screen.dart
-│   │   │   ├── habit_form_sheet.dart
-│   │   │   └── habit_reminder_sheet.dart
-│   │   ├── settings/
-│   │   │   └── settings_screen.dart
-│   │   └── home_screen.dart
-│   ├── services/
-│   │   ├── auth_service.dart
-│   │   ├── habit_service.dart
-│   │   ├── habits_meta_service.dart
-│   │   ├── user_prefs_service.dart
-│   │   ├── fcm_service.dart
-│   │   └── notification_service.dart
-│   └── widgets/
-│       ├── orbit_habit_card.dart
-│       └── fcm_token_registration.dart
-├── docs/
-│   └── FCM_SETUP.md
-├── android/
-├── ios/
-├── pubspec.yaml
-├── pubspec.lock
-└── analysis_options.yaml
-```
+## Application Source Tree (`lib/`)
 
-## Module Map
+### Entrypoints and App Shell
+- `lib/main.dart` - app bootstrap, Firebase init, FCM handlers, notification init
+- `lib/app/app.dart` - `MaterialApp`, global navigator key, notification-open route handling
+- `lib/firebase_options.dart` - FlutterFire-generated platform config
 
-### App bootstrap and shell
-- `lib/main.dart`: process bootstrap, Firebase init, FCM lifecycle hooks, local notification init.
-- `lib/app/app.dart`: root `MaterialApp`, navigator key, notification route forwarding.
-- `lib/firebase_options.dart`: generated Firebase configuration.
+### Core Utilities
+- `lib/core/app_constants.dart` - section IDs + age-group constants
+- `lib/core/ist_time.dart` - IST timezone helpers and time conversion
 
-### Core utilities
-- `lib/core/app_constants.dart`: habit section ids and age-group definitions.
-- `lib/core/ist_time.dart`: IST helpers for reminder time conversion/formatting.
-
-### Models
-- `lib/models/habit.dart`: Firestore-backed habit entity + serialization.
-- `lib/models/habit_meta.dart`: catalog metadata entity (`n/c/d/amin/amax`).
+### Domain Models
+- `lib/models/habit.dart` - persisted user habit model
+- `lib/models/habit_meta.dart` - habit catalog metadata model
 
 ### Services
-- `lib/services/auth_service.dart`: Firebase Auth wrapper.
-- `lib/services/habit_service.dart`: user-scoped habit CRUD and stream query.
-- `lib/services/habits_meta_service.dart`: habit catalog fetch and category grouping.
-- `lib/services/user_prefs_service.dart`: setup completion read/write in Firestore user doc.
-- `lib/services/fcm_service.dart`: permission/token/open-message API + token persistence helper.
-- `lib/services/notification_service.dart`: local notification init, scheduling, cancellation, test notifications.
+- `lib/services/auth_service.dart` - Firebase Auth wrapper
+- `lib/services/habit_service.dart` - Firestore CRUD + stream for `users/{uid}/habits`
+- `lib/services/habits_meta_service.dart` - read/filter/group `habits_meta`
+- `lib/services/user_prefs_service.dart` - setup completion flag in `users/{uid}`
+- `lib/services/fcm_service.dart` - FCM token/permission/message stream helpers
+- `lib/services/notification_service.dart` - local reminder schedule/cancel APIs
 
-### Screens and flows
-- Auth flow: `lib/screens/auth/auth_gate.dart`, `lib/screens/auth/login_screen.dart`.
-- Setup gate + active setup UI: `lib/screens/setup/setup_gate.dart`, `lib/screens/setup/unified_setup_screen.dart`.
-- Main app screen: `lib/screens/home_screen.dart`.
-- Manage feature: `lib/screens/manage/manage_habits_screen.dart`, `lib/screens/manage/add_habits_screen.dart`, `lib/screens/manage/habit_form_sheet.dart`, `lib/screens/manage/habit_reminder_sheet.dart`.
-- Settings/notification diagnostics: `lib/screens/settings/settings_screen.dart`.
+### Screens
+- Auth:
+  - `lib/screens/auth/auth_gate.dart`
+  - `lib/screens/auth/login_screen.dart`
+- Setup:
+  - `lib/screens/setup/setup_gate.dart`
+  - `lib/screens/setup/unified_setup_screen.dart`
+  - `lib/screens/setup/age_selection.dart` (legacy path)
+  - `lib/screens/setup/habits_selection.dart` (legacy path)
+- Main/Home:
+  - `lib/screens/home_screen.dart`
+- Habit management:
+  - `lib/screens/manage/manage_habits_screen.dart`
+  - `lib/screens/manage/add_habits_screen.dart`
+  - `lib/screens/manage/habit_form_sheet.dart`
+  - `lib/screens/manage/habit_reminder_sheet.dart`
+- Settings:
+  - `lib/screens/settings/settings_screen.dart`
 
-### Reusable widgets
-- `lib/widgets/orbit_habit_card.dart`: long-press completion visual component.
-- `lib/widgets/fcm_token_registration.dart`: authenticated token registration wrapper.
+### Widgets
+- `lib/widgets/orbit_habit_card.dart` - long-press completion interaction card
+- `lib/widgets/fcm_token_registration.dart` - auth-scoped FCM token registration wrapper
 
-## Active Entry Paths
+## Platform Structure
 
-- App launch: `lib/main.dart` -> `lib/app/app.dart` -> `lib/screens/auth/auth_gate.dart`.
-- Signed-in path: `lib/screens/auth/auth_gate.dart` -> `lib/screens/setup/setup_gate.dart` -> (`lib/screens/setup/unified_setup_screen.dart` or `lib/screens/home_screen.dart`).
-- Manage path: `lib/screens/home_screen.dart` -> `lib/screens/manage/manage_habits_screen.dart` -> add/edit/reminder sheets.
+### Android
+- `android/app/src/main/AndroidManifest.xml` - notification permissions + default channel metadata
+- `android/app/src/main/kotlin/com/example/habitu/MainActivity.kt` - channel creation (`habitu_default`)
+- `android/app/build.gradle.kts` - Android app module build config
+- `android/app/google-services.json` - Firebase Android app config
 
-## Data Ownership by File Area
+### iOS
+- `ios/Runner/AppDelegate.swift` - iOS app delegate
+- `ios/Runner/Info.plist` - iOS runtime settings
+- `ios/Runner.xcodeproj/project.pbxproj` - Xcode project config
 
-- Firestore user habit records are read/written through `lib/services/habit_service.dart`.
-- Firestore setup/user flags are read/written through `lib/services/user_prefs_service.dart` and `lib/services/fcm_service.dart`.
-- FCM token lifecycle is coordinated by `lib/widgets/fcm_token_registration.dart` + `lib/services/fcm_service.dart`.
-- Reminder scheduling state is coordinated by `lib/screens/manage/habit_reminder_sheet.dart` + `lib/services/notification_service.dart`.
+## Data/Infra Files
+- `firestore.rules` - Firestore authz rules for user-scoped docs and read-only catalog
+- `firebase.json` - Firebase CLI config and FlutterFire output mapping
+- `docs/FCM_SETUP.md` - notification integration notes
 
-## Native and Platform Files
-
-- Android manifest and permissions: `android/app/src/main/AndroidManifest.xml`.
-- Android notification channel: `android/app/src/main/kotlin/com/example/habitu/MainActivity.kt`.
-- Android Firebase/Gradle wiring: `android/app/build.gradle.kts`, `android/app/google-services.json`.
-- iOS bootstrap: `ios/Runner/AppDelegate.swift`.
-
-## Notable Legacy or Secondary Paths
-
-- Legacy onboarding screens remain in tree but are not used by gate routing:
-  - `lib/screens/setup/age_selection.dart`
-  - `lib/screens/setup/habits_selection.dart`
-- Supporting documentation exists under `docs/`, including `docs/FCM_SETUP.md`.
-
-## Conventions in This Repository
-
-- File naming is `snake_case.dart`.
-- Services are flat under `lib/services/`.
-- Feature screens are grouped by subdirectory under `lib/screens/` when the feature has multiple files.
-- No dedicated test directory currently exists (`test/` not present in repository tree).
+## Dependency and Ownership Shape
+- UI code is mostly feature-oriented by screen folder (`auth`, `setup`, `manage`, `settings`).
+- Cross-feature business/data logic is centralized by technical concern in `lib/services/`.
+- Shared constants and time policy live under `lib/core/` and are consumed broadly.
+- No `test/` directory currently exists.
