@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User's own document: profile, setupComplete, fcmToken, etc.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // User's habits subcollection
+    match /users/{userId}/habits/{habitId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Read-only catalog of habit metadata (age-filtered in app)
+    match /habits_meta/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

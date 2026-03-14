@@ -34,6 +34,7 @@ class _FcmTokenRegistrationState extends State<FcmTokenRegistration> {
 
   Future<void> _registerToken() async {
     final token = await FcmService().getToken();
+    print('FCM Token: $token');
     if (token != null && mounted) {
       await saveFcmTokenToFirestore(widget.uid, token);
     }

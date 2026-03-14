@@ -157,11 +157,11 @@ class _AgeTile extends StatelessWidget {
       decoration: BoxDecoration(
         color:
             isSelected
-                ? Colors.white.withOpacity(0.15)
-                : Colors.white.withOpacity(0.05),
+                ? Colors.white.withValues(alpha: 0.15)
+                : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isSelected ? Colors.cyanAccent : Colors.white.withOpacity(0.1),
+          color: isSelected ? Colors.cyanAccent : Colors.white.withValues(alpha: 0.1),
           width: isSelected ? 2 : 1,
         ),
       ),
@@ -188,7 +188,7 @@ class _AgeTile extends StatelessWidget {
                 Text(
                   "Age $range",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     fontSize: 10,
                   ),
                 ),
