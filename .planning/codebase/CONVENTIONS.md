@@ -1,223 +1,56 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-13
+## Scope
+- This document reflects the current Flutter/Dart app code under `lib/` plus platform shells in `android/` and `ios/`.
+- Lint baseline is `analysis_options.yaml` (`include: package:flutter_lints/flutter.yaml`).
 
-## Language & Framework
+## Project Layout
+- App entry and bootstrap live in `lib/main.dart` and `lib/app/app.dart`.
+- Core constants/time helpers are in `lib/core/app_constants.dart` and `lib/core/ist_time.dart`.
+- Firestore/auth domain models are in `lib/models/habit.dart` and `lib/models/habit_meta.dart`.
+- Firebase/data/notification services are in `lib/services/`.
+- UI is split by feature in `lib/screens/` (`auth/`, `setup/`, `manage/`, `settings/`) plus reusable widgets in `lib/widgets/`.
 
-**Language:** Dart 3.7.2
-**Framework:** Flutter
-**Project Type:** Mobile app (Android/iOS)
+## Naming and File Patterns
+- Files use `snake_case` (examples: `lib/services/habit_service.dart`, `lib/screens/home_screen.dart`).
+- Types use `PascalCase` (`HabitService`, `UnifiedSetupScreen`, `OrbitHabitCard`).
+- Private members/types use leading `_` (`_habitsCollection`, `_SettingsScreenState`, `_SectionTitle`).
+- Screen files generally end with `_screen.dart`; service files generally end with `_service.dart`.
 
-## Naming Patterns
+## Imports
+- Imports are package-style, including local code (`package:habitu/...`) rather than relative paths.
+- Typical ordering in files: Dart SDK imports, third-party package imports, then `package:habitu/...` imports.
+- Example files: `lib/widgets/orbit_habit_card.dart`, `lib/services/notification_service.dart`, `lib/main.dart`.
 
-**Files:**
-- Use snake_case: `habit_service.dart`, `orbit_habit_card.dart`
-- Suffix: `*_service.dart` for services, `*_screen.dart` for screens, `*_widget.dart` for widgets
+## Data and Serialization Conventions
+- Firestore mappers are explicit `toMap`/`fromMap` methods on model classes (`lib/models/habit.dart`, `lib/models/habit_meta.dart`).
+- `Habit` stores reminder time as minutes since midnight (`reminderTimeMinutes`) with conversion helpers in `lib/core/ist_time.dart`.
+- `HabitMeta` uses compact Firestore keys (`n`, `c`, `d`, `amin`, `amax`) and normalizes category casing in `lib/models/habit_meta.dart`.
 
-**Classes:**
-- PascalCase: `HabitService`, `OrbitHabitCard`, `LoginScreen`
-- Private classes prefixed with underscore: `_SectionHeader`, `_OrbitHabitCardState`
+## Service Conventions
+- Services generally wrap SDK singletons as instance fields (examples in `lib/services/habit_service.dart`, `lib/services/auth_service.dart`, `lib/services/fcm_service.dart`).
+- `NotificationService` is an explicit singleton (`factory NotificationService() => _instance`) in `lib/services/notification_service.dart`.
+- Auth-scoped services validate user context and may throw `StateError` when called without an authenticated user (`lib/services/habit_service.dart`).
 
-**Functions & Variables:**
-- LowerCamelCase: `watchHabits()`, `currentUser`, `reminderTimeMinutes`
+## Async and UI-State Conventions
+- Async UI methods use `setState` before/after awaits and guard UI updates with `if (!mounted) return` (examples: `lib/screens/auth/login_screen.dart`, `lib/screens/settings/settings_screen.dart`, `lib/screens/setup/unified_setup_screen.dart`).
+- Setup/auth routing relies on builders over auth/profile state: `StreamBuilder` in `lib/screens/auth/auth_gate.dart`, `FutureBuilder` in `lib/screens/setup/setup_gate.dart`.
+- Navigation uses imperative `Navigator` APIs (`push`, `pushAndRemoveUntil`, modal sheets/dialogs) across `lib/screens/`.
 
-**Constants:**
-- LowerCamelCase with `k` prefix: `kSetupCompleteKey`
+## Error Handling Conventions
+- Expected SDK failures are caught as specific exception types where useful (`FirebaseAuthException` in `lib/screens/auth/login_screen.dart`, `PlatformException` in `lib/services/notification_service.dart`).
+- Non-critical parsing/notification payload errors may be swallowed in tight callbacks (`catch (_) {}` in `lib/services/notification_service.dart`).
+- Null-return pattern is used for not-found data (`Future<Habit?> getById` in `lib/services/habit_service.dart`).
 
-**Private Members:**
-- Prefix with underscore: `_fillController`, `_auth`, `_habitsCollection()`
+## Firebase and Notification Conventions
+- Firebase initializes at startup in `lib/main.dart`; background FCM handler is a top-level `@pragma('vm:entry-point')` function.
+- FCM token save pattern is merge-write to `users/{uid}` (`lib/services/fcm_service.dart`).
+- Local reminders are timezone-forced to IST (`Asia/Kolkata`) via `timezone` setup in `lib/services/notification_service.dart` and `lib/core/ist_time.dart`.
 
-## Code Style
-
-**Formatting:**
-- Tool: Dart formatter (default Flutter tooling)
-- Indentation: 2 spaces
-- Trailing commas used for readability in multi-line lists/maps
-
-**Linting:**
-- Tool: `flutter_lints` package (v5.0.0)
-- Configuration: `analysis_options.yaml` with default Flutter rules
-- Additional rules can be enabled via `linter.rules` section
-
-**Example from `lib/models/habit.dart`:**
-```dart
-const Habit({
-  required this.id,
-  required this.name,
-  required this.section,
-  required this.order,
-  required this.createdAt,
-  required this.updatedAt,
-  this.colorHex,
-  this.iconName,
-  this.reminderTimeMinutes,
-});
-```
-
-**Use of const:**
-- Always use `const` constructors where possible
-- Use `const` for static widget instances
-- Example: `const HomeScreen({super.key});`
-
-## Import Organization
-
-**Order (in Dart files):**
-1. Dart SDK imports (`dart:async`, `dart:math`)
-2. Package imports (`package:flutter/...`, `package:firebase_auth/...`)
-3. Relative imports (`../models/...`, `./widgets/...`)
-
-**Example from `lib/screens/home_screen.dart`:**
-```dart
-import 'package:flutter/material.dart';
-import 'package:habitu/core/app_constants.dart';
-import 'package:habitu/models/habit.dart';
-import 'package:habitu/screens/manage/manage_habits_screen.dart';
-// ... more relative imports
-```
-
-**Path Aliases:**
-- Uses `package:` imports for all external packages
-- Relative imports for local modules (`package:habitu/...`)
-
-## Error Handling
-
-**Patterns:**
-
-1. **Return null for "not found":**
-   ```dart
-   // From lib/services/habit_service.dart
-   Future<Habit?> getById(String id) async {
-     final doc = await _habitsCollection().doc(id).get();
-     if (doc.exists && doc.data() != null) {
-       return Habit.fromMap(doc.id, doc.data()!);
-     }
-     return null;
-   }
-   ```
-
-2. **Throw StateError for programming errors:**
-   ```dart
-   CollectionReference<Map<String, dynamic>> _habitsCollection() {
-     final uid = _auth.currentUser?.uid;
-     if (uid == null) {
-       throw StateError('HabitService requires an authenticated user');
-     }
-     return _firestore.collection('users').doc(uid).collection('habits');
-   }
-   ```
-
-3. **Try/catch with specific exceptions:**
-   ```dart
-   // From lib/screens/auth/login_screen.dart
-   try {
-     if (_isSignUp) {
-       await _auth.signUpWithEmailAndPassword(email: email, password: password);
-     } else {
-       await _auth.signInWithEmailAndPassword(email: email, password: password);
-     }
-   } on FirebaseAuthException catch (e) {
-     setState(() {
-       _errorMessage = _authErrorMessage(e.code);
-       _loading = false;
-     });
-   }
-   ```
-
-4. **PlatformException handling:**
-   ```dart
-   // From lib/services/notification_service.dart
-   try {
-     await _plugin.zonedSchedule(...);
-   } on PlatformException catch (e) {
-     if (e.code == 'exact_alarms_not_permitted') {
-       // Fallback to inexact scheduling
-       await _plugin.zonedSchedule(..., androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle);
-       return;
-     }
-     rethrow;
-   }
-   ```
-
-5. **Silent catch with empty body (rare):**
-   ```dart
-   void _onSelect(NotificationResponse response) {
-     if (response.payload != null && response.payload!.isNotEmpty) {
-       try {
-         final payload = jsonDecode(response.payload!) as Map<String, dynamic>;
-         final habitId = payload['habitId'] as String?;
-         if (habitId != null) {}
-       } catch (_) {}
-     }
-   }
-   ```
-
-## Documentation
-
-**When to Document:**
-- Public classes and methods use Dart doc comments (`///`)
-- Complex business logic has inline comments explaining rationale
-
-**Example from `lib/models/habit.dart`:**
-```dart
-/// Represents a single habit stored in Firestore.
-class Habit {
-  // ...
-  
-  /// Set [clearReminder] to true to remove the daily reminder.
-  Habit copyWith({
-    String? id,
-    // ...
-    bool clearReminder = false,
-  }) { ... }
-
-  /// Reminder time as TimeOfDay, or null if no reminder.
-  TimeOfDay? get reminderTimeOfDay { ... }
-}
-```
-
-**Example from `lib/core/app_constants.dart`:**
-```dart
-/// SharedPreferences key for setup completion.
-const String kSetupCompleteKey = 'setup_complete';
-
-/// Section identifiers for habits (stored in Firestore).
-class HabitSections { ... }
-```
-
-## Function Design
-
-**Size:**
-- Functions typically under 30 lines
-- Complex widgets (like `HomeScreen`) separate private widget builders
-
-**Parameters:**
-- Use named parameters with `required` for mandatory args
-- Optional params use default values or nullability
-
-**Return Values:**
-- Use nullable types (`Habit?`) for potentially missing data
-- Use `Future<void>` for side-effect-only operations
-- Use `Stream<T>` for reactive data sources
-
-## Module Design
-
-**Exports:**
-- Direct exports from individual files (no barrel files)
-- Services are instantiated where needed or as static singletons
-
-**Service Pattern:**
-- Singleton via factory constructor: `NotificationService._()` and `factory NotificationService() => _instance;`
-- Static instance in StatelessWidget: `static final HabitService _habitService = HabitService();`
-
-**Model Pattern:**
-- Immutable data classes with `const` constructors
-- `copyWith()` method for modifications
-- `toMap()` and `fromMap()` factory for serialization
-
-**Example from `lib/models/habit.dart`:**
-```dart
-class Habit {
-  final String id;
+## Style and Formatting
+- Code uses standard Flutter formatting (2-space indentation, trailing commas in multiline widget trees).
+- `const` constructors/widgets are used where practical (examples throughout `lib/screens/home_screen.dart` and `lib/screens/auth/login_screen.dart`).
+- Public API surfaces frequently include concise doc comments (`///`) in models/services/core helpers.
   final String name;
   // ...
   

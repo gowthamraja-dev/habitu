@@ -1,37 +1,39 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-13
+**Analysis Date:** 2026-03-14
 
-## Directory Layout
+## Repository Layout
 
-```
+```text
 habitu/
 ├── lib/
-│   ├── main.dart              # Entry point, Firebase init
+│   ├── main.dart
+│   ├── firebase_options.dart
 │   ├── app/
-│   │   └── app.dart            # HabituApp widget
+│   │   └── app.dart
 │   ├── core/
-│   │   ├── app_constants.dart # Constants, HabitSections
-│   │   └── ist_time.dart      # Time utilities
+│   │   ├── app_constants.dart
+│   │   └── ist_time.dart
 │   ├── models/
-│   │   ├── habit.dart         # Habit model
-│   │   └── habit_meta.dart    # HabitMeta model
+│   │   ├── habit.dart
+│   │   └── habit_meta.dart
 │   ├── screens/
 │   │   ├── auth/
 │   │   │   ├── auth_gate.dart
 │   │   │   └── login_screen.dart
-│   │   ├── home_screen.dart   # Main habit list
+│   │   ├── setup/
+│   │   │   ├── setup_gate.dart
+│   │   │   ├── unified_setup_screen.dart
+│   │   │   ├── age_selection.dart
+│   │   │   └── habits_selection.dart
 │   │   ├── manage/
 │   │   │   ├── manage_habits_screen.dart
+│   │   │   ├── add_habits_screen.dart
 │   │   │   ├── habit_form_sheet.dart
 │   │   │   └── habit_reminder_sheet.dart
 │   │   ├── settings/
 │   │   │   └── settings_screen.dart
-│   │   └── setup/
-│   │       ├── setup_gate.dart
-│   │       ├── unified_setup_screen.dart
-│   │       ├── age_selection.dart
-│   │       └── habits_selection.dart
+│   │   └── home_screen.dart
 │   ├── services/
 │   │   ├── auth_service.dart
 │   │   ├── habit_service.dart
@@ -39,117 +41,82 @@ habitu/
 │   │   ├── user_prefs_service.dart
 │   │   ├── fcm_service.dart
 │   │   └── notification_service.dart
-│   ├── widgets/
-│   │   ├── orbit_habit_card.dart
-│   │   └── fcm_token_registration.dart
-│   └── firebase_options.dart   # Firebase config
-├── pubspec.yaml               # Dependencies
-├── android/                   # Android native config
-├── ios/                      # iOS native config
-└── docs/                     # Documentation
+│   └── widgets/
+│       ├── orbit_habit_card.dart
+│       └── fcm_token_registration.dart
+├── docs/
+│   └── FCM_SETUP.md
+├── android/
+├── ios/
+├── pubspec.yaml
+├── pubspec.lock
+└── analysis_options.yaml
 ```
 
-## Directory Purposes
+## Module Map
 
-**lib/:**
-- Purpose: All Dart source code
-- Contains: Entry point, app code, models, services, widgets
+### App bootstrap and shell
+- `lib/main.dart`: process bootstrap, Firebase init, FCM lifecycle hooks, local notification init.
+- `lib/app/app.dart`: root `MaterialApp`, navigator key, notification route forwarding.
+- `lib/firebase_options.dart`: generated Firebase configuration.
 
-**lib/app/:**
-- Purpose: Root app widget and configuration
-- Contains: `HabituApp` MaterialApp with theme and navigator key
+### Core utilities
+- `lib/core/app_constants.dart`: habit section ids and age-group definitions.
+- `lib/core/ist_time.dart`: IST helpers for reminder time conversion/formatting.
 
-**lib/core/:**
-- Purpose: Constants and utilities
-- Contains: App constants (`HabitSections`, age groups), timezone utilities
+### Models
+- `lib/models/habit.dart`: Firestore-backed habit entity + serialization.
+- `lib/models/habit_meta.dart`: catalog metadata entity (`n/c/d/amin/amax`).
 
-**lib/models/:**
-- Purpose: Data models with serialization
-- Contains: `Habit` (user habits), `HabitMeta` (predefined habit templates)
+### Services
+- `lib/services/auth_service.dart`: Firebase Auth wrapper.
+- `lib/services/habit_service.dart`: user-scoped habit CRUD and stream query.
+- `lib/services/habits_meta_service.dart`: habit catalog fetch and category grouping.
+- `lib/services/user_prefs_service.dart`: setup completion read/write in Firestore user doc.
+- `lib/services/fcm_service.dart`: permission/token/open-message API + token persistence helper.
+- `lib/services/notification_service.dart`: local notification init, scheduling, cancellation, test notifications.
 
-**lib/screens/:**
-- Purpose: UI screens/pages
-- Contains: Auth, home, manage, settings, setup screens
+### Screens and flows
+- Auth flow: `lib/screens/auth/auth_gate.dart`, `lib/screens/auth/login_screen.dart`.
+- Setup gate + active setup UI: `lib/screens/setup/setup_gate.dart`, `lib/screens/setup/unified_setup_screen.dart`.
+- Main app screen: `lib/screens/home_screen.dart`.
+- Manage feature: `lib/screens/manage/manage_habits_screen.dart`, `lib/screens/manage/add_habits_screen.dart`, `lib/screens/manage/habit_form_sheet.dart`, `lib/screens/manage/habit_reminder_sheet.dart`.
+- Settings/notification diagnostics: `lib/screens/settings/settings_screen.dart`.
 
-**lib/services/:**
-- Purpose: Business logic and external integrations
-- Contains: Firebase wrappers, preferences, notifications
+### Reusable widgets
+- `lib/widgets/orbit_habit_card.dart`: long-press completion visual component.
+- `lib/widgets/fcm_token_registration.dart`: authenticated token registration wrapper.
 
-**lib/widgets/:**
-- Purpose: Reusable UI components
-- Contains: Custom cards, registration widgets
+## Active Entry Paths
 
-## Key File Locations
+- App launch: `lib/main.dart` -> `lib/app/app.dart` -> `lib/screens/auth/auth_gate.dart`.
+- Signed-in path: `lib/screens/auth/auth_gate.dart` -> `lib/screens/setup/setup_gate.dart` -> (`lib/screens/setup/unified_setup_screen.dart` or `lib/screens/home_screen.dart`).
+- Manage path: `lib/screens/home_screen.dart` -> `lib/screens/manage/manage_habits_screen.dart` -> add/edit/reminder sheets.
 
-**Entry Points:**
-- `lib/main.dart`: App bootstrap, Firebase init, FCM background handler
+## Data Ownership by File Area
 
-**Configuration:**
-- `pubspec.yaml`: Dependencies (Flutter, Firebase SDKs, notifications)
-- `lib/firebase_options.dart`: Firebase platform config
-- `lib/core/app_constants.dart`: App constants
+- Firestore user habit records are read/written through `lib/services/habit_service.dart`.
+- Firestore setup/user flags are read/written through `lib/services/user_prefs_service.dart` and `lib/services/fcm_service.dart`.
+- FCM token lifecycle is coordinated by `lib/widgets/fcm_token_registration.dart` + `lib/services/fcm_service.dart`.
+- Reminder scheduling state is coordinated by `lib/screens/manage/habit_reminder_sheet.dart` + `lib/services/notification_service.dart`.
 
-**Core Logic:**
-- `lib/services/auth_service.dart`: Firebase Auth wrapper
-- `lib/services/habit_service.dart`: Habit CRUD with Firestore streams
-- `lib/services/habits_meta_service.dart`: Fetch habit suggestions
+## Native and Platform Files
 
-**Primary UI:**
-- `lib/screens/home_screen.dart`: Main habit tracking screen
-- `lib/screens/auth/auth_gate.dart`: Auth state routing
-- `lib/screens/setup/setup_gate.dart`: Setup flow routing
+- Android manifest and permissions: `android/app/src/main/AndroidManifest.xml`.
+- Android notification channel: `android/app/src/main/kotlin/com/example/habitu/MainActivity.kt`.
+- Android Firebase/Gradle wiring: `android/app/build.gradle.kts`, `android/app/google-services.json`.
+- iOS bootstrap: `ios/Runner/AppDelegate.swift`.
 
-## Naming Conventions
+## Notable Legacy or Secondary Paths
 
-**Files:**
-- Dart convention: `snake_case.dart` (e.g., `habit_service.dart`, `auth_gate.dart`)
-- Screen files: `{feature}_screen.dart` or `{feature}_gate.dart`
-- Model files: `{noun}.dart` (e.g., `habit.dart`)
-- Service files: `{feature}_service.dart`
+- Legacy onboarding screens remain in tree but are not used by gate routing:
+  - `lib/screens/setup/age_selection.dart`
+  - `lib/screens/setup/habits_selection.dart`
+- Supporting documentation exists under `docs/`, including `docs/FCM_SETUP.md`.
 
-**Directories:**
-- `lib/screens/`: Feature-based subdirectories for grouped screens
-- `lib/services/`: Flat - all services in one directory
-- `lib/models/`: Flat - all models in one directory
+## Conventions in This Repository
 
-**Classes:**
-- PascalCase: `HabitService`, `HomeScreen`, `OrbitHabitCard`
-- Widgets: Often named with screen/component name (e.g., `AuthGate`)
-
-## Where to Add New Code
-
-**New Feature Screen:**
-- Implementation: `lib/screens/{feature}/{feature}_screen.dart`
-- Related: Add supporting files in same directory
-
-**New Service:**
-- Implementation: `lib/services/{feature}_service.dart`
-- Follow existing service pattern: wrap Firebase or external SDK
-
-**New Model:**
-- Implementation: `lib/models/{noun}.dart`
-- Include `fromMap`, `toMap` for Firestore serialization, `copyWith` for immutability
-
-**New Reusable Widget:**
-- Implementation: `lib/widgets/{widget_name}.dart`
-- Keep focused on single responsibility
-
-**New Utility:**
-- Implementation: `lib/core/` for app-wide utilities
-- Avoid - prefer placing in appropriate service or model
-
-## Special Directories
-
-**android/, ios/:**
-- Purpose: Native platform configuration
-- Generated: Partially (Firebase config needs to be committed)
-- Committed: Yes - `google-services.json`, `GoogleService-Info.plist` should be added
-
-**docs/:**
-- Purpose: Documentation
-- Generated: No
-- Committed: Yes
-
----
-
-*Structure analysis: 2026-03-13*
+- File naming is `snake_case.dart`.
+- Services are flat under `lib/services/`.
+- Feature screens are grouped by subdirectory under `lib/screens/` when the feature has multiple files.
+- No dedicated test directory currently exists (`test/` not present in repository tree).

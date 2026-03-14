@@ -1,161 +1,118 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-13
+**Analysis Date:** 2026-03-14
 
-## Tech Debt
+## Critical
 
-**Hardcoded Placeholder Stats:**
-- Issue: Header in `home_screen.dart` displays hardcoded "92%" that never changes
-- Files: `lib/screens/home_screen.dart` (line 184)
-- Impact: User sees fake momentum percentage with no real calculation
-- Fix approach: Implement actual habit completion tracking and calculate real momentum percentage
+### 1) User document overwrite can delete profile fields
+- Concern: setup completion writes the entire user document without merge.
+- Evidence: `lib/services/user_prefs_service.dart` uses `.set({_setupCompleteField: true})`.
+- Why this matters: existing fields like `fcmToken` written by `lib/services/fcm_service.dart` can be lost.
+- Fix direction: use `SetOptions(merge: true)` for setup updates.
 
-**Hardcoded Font Family:**
-- Issue: `OrbitHabitCard` references 'Satoshi' font family that may not be bundled
-- Files: `lib/widgets/orbit_habit_card.dart` (line 104)
-- Impact: Text may render with fallback font, causing inconsistent UI
-- Fix approach: Add font to pubspec.yaml assets or remove fontFamily reference to use default
+### 2) Notification deep-link routing can throw on unknown routes
+- Concern: push payload route is sent directly to named navigation, but app route table is not defined.
+- Evidence: `lib/app/app.dart` calls `Navigator.of(context).pushNamed(route)`; same file `MaterialApp` has no `routes`/`onGenerateRoute`.
+- Why this matters: a payload with any non-registered route can fail at runtime.
+- Fix direction: validate route values and/or implement `onGenerateRoute` with safe fallback.
 
-**Empty Notification Handler:**
-- Issue: `_onSelect` in notification service has empty catch block that silently swallows errors
-- Files: `lib/services/notification_service.dart` (lines 55-63)
-- Impact: Notification tap payload parsing failures are invisible
-- Fix approach: Add logging for debugging, handle navigation based on payload
+## High
 
-**Client-Side Filtering:**
-- Issue: `HabitsMetaService.fetchForAgeRange` fetches ALL habits_meta documents then filters in Dart
-- Files: `lib/services/habits_meta_service.dart` (lines 13-25)
-- Impact: W bandwidth on large datasets, slower performance
-- Fix approach: Use Firestore compound queries to filter server-side
+### 3) Release builds are signed with debug config
+- Concern: Android release type uses debug signing.
+- Evidence: `android/app/build.gradle.kts` sets `signingConfig = signingConfigs.getByName("debug")` for `release`.
+- Why this matters: not production-safe for store delivery and key management.
+- Fix direction: add real release signing config and environment-based key handling.
 
-## Known Bugs
+### 4) Firestore rules are not versioned in repo
+- Concern: no Firestore security rules file is present.
+- Evidence: no `firestore.rules` found from project root; `firebase.json` does not reference Firestore rules.
+- Why this matters: access policy is not auditable in source control.
+- Fix direction: add `firestore.rules` and wire it in `firebase.json`.
 
-**Web Platform Not Supported:**
-- Issue: Firebase options explicitly throw for web platform
-- Files: `lib/firebase_options.dart` (lines 19-23)
-- Trigger: Running `flutter build web`
-- Workaround: None - web platform not implemented
+### 5) No automated tests in project
+- Concern: no unit/widget/integration tests exist.
+- Evidence: no `test/` directory; test docs in `.planning/codebase/TESTING.md` confirm absence.
+- Why this matters: high regression risk for auth, Firestore serialization, and notification scheduling.
+- Fix direction: start with model/service tests for `lib/models/` and `lib/services/`.
 
-**Missing macOS/Windows/Linux Support:**
-- Issue: Firebase options not configured for desktop platforms
-- Files: `lib/firebase_options.dart` (lines 30-44)
-- Impact: Cannot build for desktop platforms
+## Medium
 
-## Security Considerations
+### 6) Expensive client-side metadata filtering
+- Concern: all `habits_meta` docs are fetched then filtered in app code.
+- Evidence: `lib/services/habits_meta_service.dart` calls `_col.get()` then loops with `matchesAgeRange(...)`.
+- Why this matters: reads and latency scale poorly with metadata growth.
+- Fix direction: remodel data/query strategy for server-side filtering.
 
-**Firestore Security Rules:**
-- Risk: No `firestore.rules` file found in the project
-- Files: None detected
-- Current mitigation: Assumed Firebase default (deny all)
-- Recommendations: Add firestore.rules with user-owned document rules
+### 7) Sequential writes in setup/add flows
+- Concern: habit creation loops write one document at a time.
+- Evidence: `lib/screens/setup/unified_setup_screen.dart`, `lib/screens/setup/habits_selection.dart`, and `lib/screens/manage/add_habits_screen.dart` each `await _habitService.create(...)` inside loops.
+- Why this matters: slow onboarding/add flows and partial-write failure windows.
+- Fix direction: batch writes (`WriteBatch`) or parallelized constrained writes with rollback handling.
 
-**Exposed FCM Tokens:**
-- Risk: Settings screen displays and allows copying FCM tokens
-- Files: `lib/screens/settings/settings_screen.dart` (lines 186-227)
-- Current mitigation: Debug-only feature
-- Recommendations: Consider adding debug-only compile flag or removing from production builds
+### 8) Notification payload errors are silently swallowed
+- Concern: notification tap payload parse failures are ignored.
+- Evidence: empty catch block in `lib/services/notification_service.dart` (`catch (_) {}`).
+- Why this matters: debugging routing/tap issues is difficult.
+- Fix direction: log or surface parse failures.
 
-**No Input Validation:**
-- Risk: Email format validation relies only on Firebase backend
-- Files: `lib/services/auth_service.dart`, `lib/models/habit.dart`
-- Current mitigation: Firebase handles validation
-- Recommendations: Add client-side validation for better UX
+### 9) Notification ID collision risk
+- Concern: reminder IDs are derived from hash modulo int range.
+- Evidence: `_notificationIdForHabit` in `lib/services/notification_service.dart` uses `habitId.hashCode.abs() % 0x7FFFFFFF`.
+- Why this matters: collisions can overwrite/cancel the wrong reminder.
+- Fix direction: persist a deterministic unique numeric ID per habit.
 
-## Performance Bottlenecks
+### 10) Setup gate has no explicit error state
+- Concern: failed setup preference read is treated like loading forever.
+- Evidence: `lib/screens/setup/setup_gate.dart` only checks `!snapshot.hasData` then shows spinner; no `snapshot.hasError` branch.
+- Why this matters: transient backend issues can strand users on indefinite loading UI.
+- Fix direction: add error UI + retry path.
 
-**No Offline Persistence:**
-- Problem: App relies on Firestore real-time listeners with no offline cache
-- Files: `lib/services/habit_service.dart`, `lib/services/habits_meta_service.dart`
-- Cause: No `FirestoreSettings` with cache/timeout configured
-- Improvement path: Enable `FirestoreSettings` with `cacheSizeBytes` and `persistenceEnabled`
+### 11) Home “progress” is hardcoded, not data-backed
+- Concern: UI shows static completion value and completion toast without persistence.
+- Evidence: `lib/screens/home_screen.dart` hardcodes `"92%"`; completion action in `lib/widgets/orbit_habit_card.dart` only triggers callback/toast.
+- Why this matters: misleading product behavior and unclear completion model.
+- Fix direction: add completion fields/history to `lib/models/habit.dart` and persist updates.
 
-**No Pagination:**
-- Problem: All habits loaded at once without pagination
-- Files: `lib/services/habit_service.dart` (lines 18-27)
-- Cause: Simple `snapshots()` without limit
-- Improvement path: Add pagination support for users with many habits
+### 12) Forced IST for all users
+- Concern: notifications and displayed reminder times always use IST.
+- Evidence: `lib/services/notification_service.dart` forces `tz.setLocalLocation(IstTime.location())`; `lib/core/ist_time.dart` hardcodes `Asia/Kolkata`.
+- Why this matters: incorrect reminder timing for non-IST users.
+- Fix direction: store user timezone or use device timezone with migration strategy.
 
-## Fragile Areas
+## Low / Cleanup
 
-**Auth State Race Conditions:**
-- Why fragile: Multiple places check `_auth.currentUser?.uid` without waiting for auth state
-- Files: `lib/services/auth_service.dart`, `lib/services/habit_service.dart`
-- Safe modification: Use `authStateChanges` stream consistently everywhere
-- Test coverage: Not tested
+### 13) Font family reference may not be bundled
+- Concern: UI references `Satoshi` font without font asset configuration.
+- Evidence: `lib/widgets/orbit_habit_card.dart` sets `fontFamily: 'Satoshi'`; `pubspec.yaml` has no custom `fonts:` entry.
+- Why this matters: inconsistent rendering across devices.
+- Fix direction: declare bundled font assets or remove custom family.
 
-**Notification ID Collision Risk:**
-- Why fragile: `habitId.hashCode.abs() % 0x7FFFFFFF` could collide for different habits
-- Files: `lib/services/notification_service.dart` (lines 79-81)
-- Safe modification: Use UUID-based IDs or store ID mapping in Firestore
-- Test coverage: Not tested
+### 14) Stale and inconsistent docs
+- Concern: project docs no longer describe actual implementation.
+- Evidence: `README.md` is default Flutter boilerplate; `docs/FCM_SETUP.md` says no local notifications while `pubspec.yaml` and `lib/services/notification_service.dart` actively use `flutter_local_notifications`.
+- Why this matters: onboarding and operational confusion.
+- Fix direction: align docs to current architecture and flows.
 
-## Scaling Limits
+### 15) Dead/legacy setup artifacts still present
+- Concern: unused constants/dependencies and legacy screens remain.
+- Evidence: `lib/core/app_constants.dart` defines `kSetupCompleteKey` not used; `pubspec.yaml` includes `shared_preferences` but app writes setup status via Firestore in `lib/services/user_prefs_service.dart`; `lib/screens/setup/age_selection.dart` and `lib/screens/setup/habits_selection.dart` are not used by current gate flow in `lib/screens/setup/setup_gate.dart`.
+- Why this matters: maintenance noise and confusion about canonical setup path.
+- Fix direction: remove or clearly mark deprecated paths.
 
-**Firestore Document Count:**
-- Current capacity: Assumes reasonable number of habits per user
-- Limit: Firestore recommends <10,000 documents per collection
-- Scaling path: Add archiving for old completed habits
+### 16) Platform support intentionally incomplete but uncaptured as product constraint
+- Concern: web/desktop Firebase options throw unsupported errors.
+- Evidence: `lib/firebase_options.dart` throws for web, macOS, Windows, Linux.
+- Why this matters: accidental multi-platform builds fail late.
+- Fix direction: document supported platforms and enforce in CI/build scripts.
 
-**Notification Scheduling:**
-- Current capacity: Android/iOS limits (Android 12+ exact alarms restricted)
-- Limit: System notification scheduling limits apply
-- Scaling path: Already handles inexact fallback gracefully
-
-## Dependencies at Risk
-
-**Firebase Packages:**
-- Risk: Using older versions (e.g., firebase_auth: ^6.1.4)
-- Impact: Security patches may be missing
-- Migration plan: Run `flutter pub upgrade --major-versions` to get latest stable
-
-**Flutter Version:**
-- Risk: Using SDK ^3.7.2 - may be behind current stable
-- Impact: Newer Dart features and fixes unavailable
-- Migration plan: Update SDK version in pubspec.yaml
-
-## Missing Critical Features
-
-**No Tests:**
-- Problem: Zero test files found in project
-- Blocks: Safe refactoring, regression detection
-- Priority: High
-
-**No Error Boundaries:**
-- Problem: No Flutter error handling/widget fallback for crashes
-- Blocks: Graceful degradation when errors occur
-- Priority: Medium
-
-**No Analytics:**
-- Problem: No crash reporting or usage analytics
-- Blocks: Understanding user behavior, debugging production issues
-- Priority: Medium
-
-## Test Coverage Gaps
-
-**Untested Services:**
-- What's not tested: All services (AuthService, HabitService, FcmService, NotificationService)
-- Files: `lib/services/*.dart`
-- Risk: Authentication bugs, database errors could go unnoticed
-- Priority: High
-
-**Untested Models:**
-- What's not tested: Habit model serialization/deserialization
-- Files: `lib/models/habit.dart`, `lib/models/habit_meta.dart`
-- Risk: Data corruption from field mismatches
-- Priority: High
-
-**Untested Widgets:**
-- What's not tested: All custom widgets
-- Files: `lib/widgets/*.dart`
-- Risk: UI bugs in production
-- Priority: High
-
-**Untested Screens:**
-- What's not tested: All screens
-- Files: `lib/screens/**/*.dart`
-- Risk: Navigation and state management bugs
-- Priority: High
+## Suggested Priority Order
+1. Prevent user-doc field loss (`lib/services/user_prefs_service.dart`).
+2. Harden notification routing (`lib/app/app.dart` + route table/fallbacks).
+3. Add Firestore rules to repo and deployment config (`firebase.json` + `firestore.rules`).
+4. Introduce baseline tests for models/services.
+5. Address query/write scalability in setup and catalog flows.
 
 ---
 
-*Concerns audit: 2026-03-13*
+*Concerns audit refreshed: 2026-03-14*
